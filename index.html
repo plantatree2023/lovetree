@@ -152,7 +152,7 @@
   <form class="modal-box" id="addForm" novalidate>
     <button type="button" class="x" id="addClose">✕</button>
     <h3>🌱 种下一片新叶子</h3>
-    <label class="field">日期 <small>（留空则添加一片空树叶；不能选未来的日子）</small><input type="date" id="addDate"></label>
+    <label class="field">日期 <small>（留空则添加一片空树叶；不能选未来的日子；如果这天已有叶子，会把事项合并进去，最多 5 件）</small><input type="date" id="addDate"></label>
     <label class="field">这一天我们做了什么（每行一件事）<textarea id="addActs" rows="5" placeholder="比如：第一次一起做饭"></textarea></label>
     <div class="err" id="addErr"></div>
     <div class="row">
@@ -274,11 +274,12 @@ function shortDate(s) { const d = parseDate(s); return `${d.getMonth() + 1}月${
 function todayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 function daysAgo(s) { const t = parseDate(todayStr()); return Math.round((t - parseDate(s)) / 86400000); }
 // 日期校验：不能是未来，也不能和已有叶子重复
-function dateError(date, exceptId) {
+const MAX_ACTIVITIES = 5;   // 添加叶子时，与同一天已有叶子合并后的事项上限
+function dateError(date, exceptId, allowTaken = false) {
   if (!date) return '';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return '⚠ 日期格式不对哦';
   if (date > todayStr()) return `⚠ 不能选择未来的日期哦（今天是 ${prettyDate(todayStr())}）`;
-  if (dateTaken(date, exceptId)) return `⚠ ${prettyDate(date)} 这一天已经有一片叶子了，一天只能有一片哦`;
+  if (!allowTaken && dateTaken(date, exceptId)) return `⚠ ${prettyDate(date)} 这一天已经有一片叶子了，一天只能有一片哦`;
   return '';
 }
 
@@ -849,10 +850,10 @@ function setTagText(text) {
 }
 let highlight = null;
 const HIGHLIGHT_SECONDS = 45;
-function startHighlight(id) {
+function startHighlight(id, label) {
   const l = leafById(id);
   highlight = { id, start: clock.elapsedTime, until: clock.elapsedTime + HIGHLIGHT_SECONDS };
-  setTagText(l.date ? `✨ 新叶子 · ${shortDate(l.date)}` : '✨ 新的空叶子');
+  setTagText(label || (l.date ? `✨ 新叶子 · ${shortDate(l.date)}` : '✨ 新的空叶子'));
   controls.autoRotate = false;
 }
 function endHighlight() {
@@ -1081,7 +1082,7 @@ $('btnDelete').onclick = () => {
 const addModal = $('addModal');
 function openAdd() {
   $('addDate').max = todayStr();
-  $('addDate').value = dateTaken(todayStr()) ? '' : todayStr();
+  $('addDate').value = todayStr();
   $('addActs').value = ''; $('addErr').textContent = '';
   addModal.classList.remove('hidden');
   setTimeout(() => $('addDate').focus(), 50);
@@ -1094,10 +1095,37 @@ addModal.addEventListener('pointerdown', (e) => { if (e.target === addModal) clo
 $('addForm').onsubmit = (e) => {
   e.preventDefault();
   const date = $('addDate').value || null;
-  const err = dateError(date);
+  const err = dateError(date, undefined, true);
   if (err) return flashError($('addErr'), $('addForm'), err);
+  const acts = parseActs($('addActs').value);
+
+  // 这一天已经有叶子：把新写的事项合并进那片叶子，合并后最多 MAX_ACTIVITIES 件
+  const existing = date && data.leaves.find(l => l.date === date);
+  if (existing) {
+    const newActs = acts.filter(a => !existing.activities.includes(a));
+    if (!newActs.length) {
+      return flashError($('addErr'), $('addForm'), acts.length
+        ? `⚠ 这些事项 ${prettyDate(date)} 那片叶子里已经都有了`
+        : `⚠ ${prettyDate(date)} 已经有一片叶子了，写下这天做的事就能合并进去哦`);
+    }
+    const total = existing.activities.length + newActs.length;
+    if (total > MAX_ACTIVITIES) {
+      return flashError($('addErr'), $('addForm'),
+        `⚠ ${prettyDate(date)} 已有 ${existing.activities.length} 件事，合并后会有 ${total} 件，超过了 ${MAX_ACTIVITIES} 件的上限，不能合并`);
+    }
+    existing.activities.push(...newActs);
+    save();
+    if (focus) { closeLeaf(); }
+    closeAdd();
+    drawer.classList.add('closed');
+    startHighlight(existing.id, `✨ 已合并 · ${shortDate(date)}`);
+    turnCameraTo(meshById.get(existing.id));
+    toast(`已合并到 ${prettyDate(date)} 的叶子里 💗 现在一共 ${total} 件事`);
+    return;
+  }
+
   // 新叶子总是长在新的位置上，不会替换或挤掉已有的空叶子
-  const leaf = { id: uid(), date, activities: parseActs($('addActs').value), slot: freeSlot() };
+  const leaf = { id: uid(), date, activities: acts, slot: freeSlot() };
   data.leaves.push(leaf); save();
   if (focus) { closeLeaf(); }
   const m = createLeafMesh(leaf, 0);
