@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>我们的爱心树</title>
+<style>
+  :root {
+    --pink: #ff6fa5;
+    --pink-deep: #e8457a;
+    --rose: #c23a6f;
+    --ink: #4a1832;
+    --glass: rgba(255, 248, 251, 0.94);
+    --font: "LXGW WenKai", "KaiTi", "STKaiti", "Kaiti SC", "Microsoft YaHei", "PingFang SC", serif;
+  }
+  * { box-sizing: border-box; }
+  button, input, textarea, select { font-family: var(--font); }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #fbe9f0; font-family: var(--font); color: var(--ink); }
+  canvas#scene { display: block; position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; }
+
+  #vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 45%, rgba(255,255,255,0) 55%, rgba(255,196,218,.35) 100%); }
+  #header { position: fixed; top: 20px; left: 0; right: 0; text-align: center; pointer-events: none; color: var(--rose); text-shadow: 0 1px 0 rgba(255,255,255,.9), 0 0 22px rgba(255, 255, 255, .95); }
+  #header h1 { margin: 0; font-size: clamp(26px, 4.4vw, 44px); letter-spacing: .18em; font-weight: 600; }
+  #header .sub { margin-top: 6px; font-size: clamp(14px, 1.8vw, 18px); letter-spacing: .12em; color: #a0527a; }
+  #header .stats { margin-top: 8px; font-size: 14px; color: #9a5a7a; letter-spacing: .06em; padding: 0 16px; }
+
+  #toolbar { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; width: max-content; max-width: calc(100% - 32px); z-index: 5; }
+  .btn { font-family: var(--font); font-size: 16px; letter-spacing: .08em; border: 1px solid rgba(232, 69, 122, .28); background: rgba(255, 255, 255, .62); color: #b8406f; padding: 10px 18px; border-radius: 999px; cursor: pointer; backdrop-filter: blur(8px); transition: transform .15s, background .2s, box-shadow .2s; box-shadow: 0 4px 16px rgba(220, 120, 160, .15); }
+  .btn:hover { transform: translateY(-2px); background: rgba(255, 255, 255, .9); box-shadow: 0 6px 22px rgba(255, 90, 160, .25); }
+  .btn.primary { background: linear-gradient(135deg, #ff8fb8, #ff4f8b); border-color: transparent; color: #fff; box-shadow: 0 6px 24px rgba(255, 79, 139, .4); }
+  .btn.ghost { background: transparent; color: var(--pink-deep); border-color: rgba(232, 69, 122, .45); box-shadow: none; }
+  .btn.ghost:hover { background: rgba(255, 111, 165, .12); }
+  .btn.danger { background: transparent; color: #b8325f; border-color: rgba(184, 50, 95, .4); box-shadow: none; }
+
+  body.focused #header, body.focused #toolbar, body.focused #hint { opacity: 0; pointer-events: none; }
+  #header, #toolbar { transition: opacity .4s; }
+  #hint { position: fixed; left: 16px; bottom: 84px; color: rgba(140, 70, 105, .8); text-shadow: 0 0 6px #fff, 0 0 10px #fff; font-size: 13px; pointer-events: none; }
+  #tooltip { position: fixed; pointer-events: none; padding: 6px 12px; border-radius: 12px; background: rgba(255, 255, 255, .96); color: var(--ink); font-size: 14px; box-shadow: 0 4px 18px rgba(255, 80, 150, .3); opacity: 0; transition: opacity .15s; white-space: nowrap; z-index: 6; }
+
+  /* 放大后的叶子详情卡片 */
+  #card { position: fixed; right: 6vw; top: 50%; width: min(380px, calc(100% - 32px)); max-height: 78vh; overflow: auto; transform: translateY(-50%); background: var(--glass); border-radius: 26px; padding: 28px 26px 22px; box-shadow: 0 20px 60px rgba(255, 60, 140, .28), inset 0 0 0 1px rgba(255, 170, 205, .6); z-index: 8; transition: opacity .35s, transform .35s; }
+  #card.hidden { opacity: 0; pointer-events: none; transform: translateY(-46%) scale(.96); }
+  .x { position: absolute; top: 12px; right: 14px; border: none; background: none; font-size: 20px; color: var(--pink-deep); cursor: pointer; }
+  .kicker { font-size: 14px; color: var(--pink-deep); letter-spacing: .1em; }
+  #cardDate { margin: 8px 0 4px; font-size: 28px; color: #c2285f; }
+  #cardSub { font-size: 14px; color: #9a5a78; }
+  #cardActs { margin: 16px 0 8px; padding: 0; list-style: none; }
+  #cardActs li { position: relative; padding: 8px 0 8px 26px; border-bottom: 1px dashed rgba(232, 69, 122, .25); font-size: 17px; line-height: 1.5; }
+  #cardActs li::before { content: "❤"; position: absolute; left: 2px; top: 9px; color: var(--pink); font-size: 14px; }
+  #cardEmpty { margin: 16px 0; color: #9a5a78; font-size: 16px; line-height: 1.6; }
+  .row { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+  label.field { display: block; margin-top: 14px; font-size: 15px; color: #8a3a60; }
+  label.field small { color: #b07a94; }
+  label.field input, label.field textarea { display: block; width: 100%; margin-top: 6px; font-family: var(--font); font-size: 16px; padding: 10px 12px; border-radius: 14px; border: 1px solid rgba(232, 69, 122, .35); background: #fff; color: var(--ink); outline: none; resize: vertical; }
+  label.field input:focus, label.field textarea:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(255, 111, 165, .2); }
+  .err { min-height: 20px; margin-top: 10px; color: #d61f5b; font-size: 14px; }
+  .shake { animation: shake .4s; }
+  @keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+  .hidden { display: none !important; }
+  #card.hidden { display: block !important; }
+
+  /* 添加树叶弹窗 */
+  #addModal { position: fixed; inset: 0; background: rgba(150, 80, 115, .18); display: flex; align-items: center; justify-content: center; z-index: 10; padding: 16px; backdrop-filter: blur(4px); }
+  .modal-box { position: relative; width: min(420px, 100%); background: var(--glass); border-radius: 26px; padding: 26px; box-shadow: 0 20px 60px rgba(255, 60, 140, .3); }
+  .modal-box h3 { margin: 0; font-size: 22px; color: #c2285f; }
+
+  /* 回忆列表 */
+  #drawer { position: fixed; top: 0; left: 0; bottom: 0; width: min(340px, 88vw); background: var(--glass); z-index: 9; padding: 22px 18px; overflow: auto; box-shadow: 10px 0 40px rgba(255, 60, 140, .2); transition: transform .35s; }
+  #drawer.closed { transform: translateX(-105%); }
+  #drawer h3 { margin: 0 0 12px; color: #c2285f; font-size: 22px; }
+  .mem { padding: 12px 12px; border-radius: 14px; cursor: pointer; transition: background .15s; }
+  .mem:hover { background: rgba(255, 111, 165, .14); }
+  .mem .d { color: #c2285f; font-size: 16px; }
+  .mem .a { font-size: 14px; color: #7a4a62; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .drawer-note { font-size: 13px; color: #9a5a78; margin-top: 14px; }
+
+  #toast { position: fixed; bottom: 86px; left: 50%; transform: translate(-50%, 10px); background: rgba(255, 255, 255, .97); color: #c2285f; padding: 10px 20px; border-radius: 999px; box-shadow: 0 8px 26px rgba(255, 60, 140, .3); opacity: 0; transition: opacity .3s, transform .3s; z-index: 12; pointer-events: none; font-size: 16px; max-width: calc(100% - 32px); text-align: center; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #toast.error { color: #fff; background: #e23a72; }
+
+  #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--rose); font-size: 20px; letter-spacing: .2em; z-index: 20; background: linear-gradient(#e3ecfa, #fbe3ec); transition: opacity .8s; }
+
+  @media (max-width: 720px) {
+    #card { right: 16px; left: 16px; width: auto; top: auto; bottom: 16px; transform: none; max-height: 52vh; padding: 22px 18px 18px; }
+    #card.hidden { transform: translateY(20px); }
+    #cardDate { font-size: 23px; }
+    #hint { display: none; }
+    #header { top: 12px; }
+    .btn { font-size: 14px; padding: 9px 14px; }
+  }
+</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/lxgwwenkai-regular.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/lxgwwenkai-bold.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="loading">🌱 爱心树正在发芽…</div>
+<canvas id="scene"></canvas>
+<div id="vignette"></div>
+
+<div id="header">
+  <h1>我们的爱心树</h1>
+  <div class="sub">每一片叶子，都是我们的一天</div>
+  <div class="stats" id="stats"></div>
+</div>
+
+<div id="hint">拖动旋转 · 滚轮缩放 · 点击爱心叶子查看那一天</div>
+<div id="tooltip"></div>
+
+<div id="toolbar">
+  <button class="btn primary" id="btnAdd">＋ 添加树叶</button>
+  <button class="btn" id="btnList">📖 回忆列表</button>
+  <button class="btn" id="btnExport">导出备份</button>
+  <label class="btn">导入备份<input type="file" id="importFile" accept=".json,application/json" hidden></label>
+</div>
+
+<!-- 放大后的叶子卡片 -->
+<div id="card" class="hidden">
+  <button class="x" id="cardClose" title="关闭">✕</button>
+  <div id="cardView">
+    <div class="kicker" id="cardKicker">💗 我们的一天</div>
+    <h2 id="cardDate"></h2>
+    <div id="cardSub"></div>
+    <ul id="cardActs"></ul>
+    <div id="cardEmpty" class="hidden"></div>
+    <div class="row">
+      <button class="btn primary" id="btnEdit">✎ 编辑</button>
+      <button class="btn danger" id="btnDelete">删除这片叶子</button>
+    </div>
+  </div>
+  <form id="cardEdit" class="hidden" novalidate>
+    <div class="kicker" id="editKicker">✎ 编辑这一天</div>
+    <label class="field">日期 <small>（不能选未来的日子）</small><input type="date" id="editDate"></label>
+    <label class="field">这一天我们做了什么（每行一件事）<textarea id="editActs" rows="6" placeholder="比如：一起去看了海&#10;吃了超好吃的草莓蛋糕"></textarea></label>
+    <div class="err" id="editErr"></div>
+    <div class="row">
+      <button type="submit" class="btn primary">保存 💗</button>
+      <button type="button" class="btn ghost" id="btnCancelEdit">取消</button>
+    </div>
+  </form>
+</div>
+
+<!-- 添加树叶 -->
+<div id="addModal" class="hidden">
+  <form class="modal-box" id="addForm" novalidate>
+    <button type="button" class="x" id="addClose">✕</button>
+    <h3>🌱 种下一片新叶子</h3>
+    <label class="field">日期 <small>（留空则添加一片空树叶；不能选未来的日子）</small><input type="date" id="addDate"></label>
+    <label class="field">这一天我们做了什么（每行一件事）<textarea id="addActs" rows="5" placeholder="比如：第一次一起做饭"></textarea></label>
+    <div class="err" id="addErr"></div>
+    <div class="row">
+      <button type="submit" class="btn primary">种下它 💗</button>
+      <button type="button" class="btn ghost" id="addCancel">取消</button>
+    </div>
+  </form>
+</div>
+
+<!-- 回忆列表 -->
+<aside id="drawer" class="closed">
+  <button class="x" id="drawerClose">✕</button>
+  <h3>📖 我们的回忆</h3>
+  <div id="drawerList"></div>
+  <div class="drawer-note" id="drawerNote"></div>
+</aside>
+
+<div id="toast"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ================= 数据 ================= */
+const STORE_KEY = 'lovetree.v1';
+const LOVE_START = '2019-03-04';   // 在一起的第一天
+const $ = (id) => document.getElementById(id);
+
+function uid() { return 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+// 更多的纪念日叶子（示例内容，可以在页面里改成真实的回忆）
+const EXTRA_MEMORIES = [
+  ['2019-03-04', '我们在一起啦 💕', '这一天，我们的故事开始了'],
+  ['2019-05-20', '第一个 520，一起吃了晚饭 🍝'],
+  ['2019-08-07', '第一个七夕，一起看电影 🎬'],
+  ['2019-12-25', '第一个圣诞节，交换了小礼物 🎄'],
+  ['2020-02-14', '第一个情人节 🌹', '一起做了巧克力'],
+  ['2020-03-04', '在一起一周年 🎂', '回忆了我们的第一次约会'],
+  ['2020-05-20', '520，给对方写了小卡片 💌'],
+  ['2020-08-25', '七夕，一起去看了夜景 🌃'],
+  ['2020-12-25', '圣诞节，一起装饰了小圣诞树 🎄'],
+  ['2021-02-14', '情人节，收到一束花 💐'],
+  ['2021-03-04', '在一起两周年 🎂', '一起吃了蛋糕'],
+  ['2021-05-20', '520，一起去公园散步 🌳'],
+  ['2021-08-14', '七夕，一起放了孔明灯 🏮'],
+  ['2021-12-25', '圣诞节，一起逛了圣诞集市 🎁'],
+  ['2022-02-14', '情人节，一起做了一顿大餐 🍲'],
+  ['2022-03-04', '在一起三周年 🎂'],
+  ['2022-05-20', '520，一起拍了情侣照 📷'],
+  ['2022-08-04', '七夕，一起看星星 ⭐'],
+  ['2022-12-25', '圣诞节，一起窝在家里看电影 🎞️'],
+  ['2023-02-14', '情人节，一起吃了火锅 🍲'],
+  ['2023-03-04', '在一起四周年 🎂', '许愿以后每年都一起过'],
+  ['2023-05-20', '520，一起去看海 🌊'],
+  ['2023-08-22', '七夕，一起去游乐园 🎡'],
+  ['2023-12-25', '圣诞节，一起看了灯光秀 ✨'],
+  ['2024-02-14', '情人节，一起去喝下午茶 🍰'],
+  ['2024-03-04', '在一起五周年 🎂', '一起翻看了这五年的照片'],
+  ['2024-05-20', '520，互相写了情书 💌'],
+  ['2024-08-10', '七夕，一起去看烟花 🎆'],
+  ['2024-12-25', '圣诞节，一起堆了雪人 ⛄'],
+  ['2025-02-14', '情人节，一起去旅行 ✈️'],
+  ['2025-03-04', '在一起六周年 🎂'],
+  ['2025-05-20', '520，一起去看了演唱会 🎤'],
+  ['2025-08-29', '七夕，一起去吃了喜欢的餐厅 🍽️'],
+  ['2026-03-04', '在一起七周年 🎂', '第七年，也要一直一直在一起'],
+];
+const DATA_VERSION = 3;
+function nextFreeSlot(leaves) { const used = new Set(leaves.map(l => l.slot)); let s = 0; while (used.has(s)) s++; return s; }
+// 给旧数据补上新的纪念日叶子（已存在的日期会跳过，不会覆盖你改过的内容）
+function migrate(d) {
+  if ((d.version || 1) < 3) {
+    for (const [date, ...acts] of EXTRA_MEMORIES) {
+      if (d.leaves.some(l => l.date === date)) continue;
+      d.leaves.push({ id: uid(), date, activities: acts, slot: nextFreeSlot(d.leaves) });
+    }
+    d.version = DATA_VERSION;
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(d)); } catch (e) {}
+  }
+  return d;
+}
+
+function seedData() {
+  const samples = [
+    ['2025-12-25', '一起过圣诞节，交换了礼物 🎁', '在街上看圣诞树，拍了好多合照'],
+    ['2026-01-01', '一起跨年倒数 🎆', '许下新年愿望：今年也要一直在一起'],
+    ['2026-02-14', '情人节约会 🌹', '吃了烛光晚餐', '收到了一束粉色的花'],
+    ['2026-03-14', '白色情人节，一起做了草莓蛋糕 🍰'],
+    ['2026-05-20', '520 💌 给对方写了一封情书'],
+    ['2026-08-19', '七夕，一起看星星 ✨'],
+    ['2026-09-25', '中秋节，一起赏月吃月饼 🥮'],
+    ['2026-09-27', '种下了我们的爱心树 🌳💗', '从今天起，每一天都值得被记住'],
+  ];
+  const leaves = [...EXTRA_MEMORIES, ...samples].map(([date, ...acts]) => ({ id: uid(), date, activities: acts }));
+  for (let i = 0; i < 140; i++) leaves.push({ id: uid(), date: null, activities: [] });
+  // 打乱，让有日期的叶子分布在树上各处
+  const r = mulberry32(1314);
+  for (let i = leaves.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [leaves[i], leaves[j]] = [leaves[j], leaves[i]]; }
+  leaves.forEach((l, i) => l.slot = i);
+  return { version: DATA_VERSION, leaves };
+}
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) { const d = JSON.parse(raw); if (Array.isArray(d.leaves)) return migrate(d); }
+  } catch (e) {}
+  return seedData();
+}
+let data = loadData();
+function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch (e) {} updateStats(); renderDrawer(); }
+
+function dateTaken(date, exceptId) { return !!date && data.leaves.some(l => l.date === date && l.id !== exceptId); }
+function parseActs(text) { return text.split('\n').map(s => s.trim()).filter(Boolean); }
+function parseDate(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
+function prettyDate(s) { const d = parseDate(s); return `${d.getFullYear()} 年 ${d.getMonth() + 1} 月 ${d.getDate()} 日`; }
+function shortDate(s) { const d = parseDate(s); return `${d.getMonth() + 1}月${d.getDate()}日`; }
+function todayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function daysAgo(s) { const t = parseDate(todayStr()); return Math.round((t - parseDate(s)) / 86400000); }
+// 日期校验：不能是未来，也不能和已有叶子重复
+function dateError(date, exceptId) {
+  if (!date) return '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return '⚠ 日期格式不对哦';
+  if (date > todayStr()) return `⚠ 不能选择未来的日期哦（今天是 ${prettyDate(todayStr())}）`;
+  if (dateTaken(date, exceptId)) return `⚠ ${prettyDate(date)} 这一天已经有一片叶子了，一天只能有一片哦`;
+  return '';
+}
+
+/* ================= 场景 ================= */
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+const canvas = $('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+const FOG = 0xf8e2ea;
+scene.fog = new THREE.FogExp2(FOG, 0.0105);
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 400);
+camera.position.set(0, 6.2, 19);
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, 5.6, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 5;
+controls.maxDistance = 30;
+controls.maxPolarAngle = Math.PI * 0.53;
+controls.enablePan = false;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.45;
+let idleTimer;
+const canAutoRotate = () => !focus && !highlight && !camTween;
+controls.addEventListener('start', () => { controls.autoRotate = false; clearTimeout(idleTimer); });
+controls.addEventListener('end', () => { clearTimeout(idleTimer); idleTimer = setTimeout(() => { if (canAutoRotate()) controls.autoRotate = true; }, 6000); });
+
+/* ---------- 灯光 ---------- */
+scene.add(new THREE.HemisphereLight(0xfff4f9, 0xe9c6d6, 1.9));
+const sun = new THREE.DirectionalLight(0xfff0e6, 1.9);
+sun.position.set(9, 17, 11);
+sun.target.position.set(0, 3, 0);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 70 });
+sun.shadow.bias = -0.0008;
+sun.shadow.normalBias = 0.02;
+scene.add(sun, sun.target);
+const pinkLight = new THREE.PointLight(0xff8fbf, 10, 12, 1.5); pinkLight.position.set(0, 6.5, 0); scene.add(pinkLight);
+
+/* ---------- 小工具：程序化贴图 ---------- */
+function canvasTex(w, h, draw, srgb = true) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function heartPoints(size, n = 64) {
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const t = i / n * Math.PI * 2;
+    const x = 16 * Math.pow(Math.sin(t), 3);
+    const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+    pts.push(new THREE.Vector2(x * size / 32, y * size / 32));
+  }
+  return pts;
+}
+function heartPath(g, cx, cy, size) {
+  g.beginPath();
+  heartPoints(size).forEach((p, i) => { const x = cx + p.x, y = cy - p.y; i ? g.lineTo(x, y) : g.moveTo(x, y); });
+  g.closePath();
+}
+const heartTex = canvasTex(64, 64, (g) => { g.fillStyle = '#fff'; heartPath(g, 32, 34, 56); g.fill(); });
+// 非空叶子的暖色光晕：中心暖金，向外过渡到蜜桃粉
+const warmGlowTex = canvasTex(128, 128, (g) => {
+  const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grd.addColorStop(0, 'rgba(255,240,180,1)'); grd.addColorStop(0.3, 'rgba(255,205,130,.85)');
+  grd.addColorStop(0.6, 'rgba(255,160,140,.4)'); grd.addColorStop(1, 'rgba(255,140,160,0)');
+  g.fillStyle = grd; g.fillRect(0, 0, 128, 128);
+});
+const glowTex = canvasTex(128, 128, (g) => {
+  const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(0.35, 'rgba(255,255,255,.55)'); grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd; g.fillRect(0, 0, 128, 128);
+});
+
+/* ---------- 天空（渐变天穹） ---------- */
+{
+  const mat = new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, fog: false,
+    uniforms: {
+      cTop: { value: new THREE.Color('#b9d5f3') },
+      cMid: { value: new THREE.Color('#dcd4f4') },
+      cLow: { value: new THREE.Color('#fcdce8') },
+      cHor: { value: new THREE.Color('#fff0ea') },
+    },
+    vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `uniform vec3 cTop, cMid, cLow, cHor; varying vec3 vP;
+      void main(){
+        float h = vP.y;
+        vec3 c = mix(cHor, cLow, smoothstep(-0.02, 0.12, h));
+        c = mix(c, cMid, smoothstep(0.1, 0.38, h));
+        c = mix(c, cTop, smoothstep(0.32, 0.85, h));
+        gl_FragColor = vec4(c, 1.0);
+        #include <colorspace_fragment>
+      }`,
+  });
+  scene.add(new THREE.Mesh(new THREE.SphereGeometry(200, 32, 16), mat));
+}
+
+/* ---------- 太阳光晕 & 彩虹 ---------- */
+{
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xfff3d6, transparent: true, depthWrite: false, fog: false, opacity: 0.9 }));
+  s.position.set(-55, 60, -110); s.scale.set(70, 70, 1); scene.add(s);
+
+  const rainbow = canvasTex(512, 256, (g) => {
+    const cols = ['#ffb3c7', '#ffd1b3', '#fff0b3', '#c8f0c8', '#b8dcf5', '#d4c4f2'];
+    g.lineWidth = 13; g.filter = 'blur(3px)';
+    cols.forEach((c, i) => { g.strokeStyle = c; g.beginPath(); g.arc(256, 256, 226 - i * 12, Math.PI, 0); g.stroke(); });
+  });
+  const r = new THREE.Sprite(new THREE.SpriteMaterial({ map: rainbow, transparent: true, depthWrite: false, fog: false, opacity: 0.42 }));
+  r.position.set(70, 8, -120); r.scale.set(150, 75, 1); scene.add(r);
+}
+
+/* ---------- 云朵 ---------- */
+const cloudTex = canvasTex(256, 128, (g) => {
+  const r = mulberry32(8);
+  for (let i = 0; i < 26; i++) {
+    const x = 40 + r() * 176, y = 64 + (r() - 0.5) * 34 - Math.sin((x - 40) / 176 * Math.PI) * 18, rad = 18 + r() * 26;
+    const grd = g.createRadialGradient(x, y, 0, x, y, rad);
+    grd.addColorStop(0, 'rgba(255,255,255,.9)'); grd.addColorStop(0.6, 'rgba(255,255,255,.55)'); grd.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grd; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
+  }
+});
+const clouds = [];
+{
+  const tints = [0xffffff, 0xfff2f7, 0xf4efff, 0xfff6ee, 0xeef6ff];
+  const r = mulberry32(21);
+  for (let i = 0; i < 18; i++) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, color: tints[i % tints.length], transparent: true, depthWrite: false, fog: false, opacity: 0.75 + r() * 0.25 }));
+    const w = 28 + r() * 34;
+    s.scale.set(w, w * 0.45, 1);
+    s.userData = { a: r() * Math.PI * 2, rad: 70 + r() * 50, y: 14 + r() * 38, sp: (0.004 + r() * 0.006) * (r() < 0.5 ? 1 : -1) };
+    scene.add(s); clouds.push(s);
+  }
+}
+
+/* ---------- 远山（青绿与淡紫） ---------- */
+{
+  const cols = [0xcfe6c6, 0xdcebd2, 0xe2d9f1, 0xc6e0cd, 0xeadcea, 0xd5e9cf];
+  const r = mulberry32(33);
+  for (let i = 0; i < 14; i++) {
+    const a = i / 14 * Math.PI * 2 + r() * 0.3, d = 95 + r() * 40;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), new THREE.MeshLambertMaterial({ color: cols[i % cols.length] }));
+    const w = 22 + r() * 22;
+    m.scale.set(w * 1.3, 4 + r() * 5, w * (0.7 + r() * 0.4));
+    m.position.set(Math.cos(a) * d, -1, Math.sin(a) * d);
+    scene.add(m);
+  }
+}
+
+/* ---------- 远处的小樱花树 ---------- */
+{
+  const r = mulberry32(61);
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x9a6b70 });
+  const crownCols = [0xffd3e3, 0xffe4ee, 0xfbc4d8, 0xfff0f5, 0xf3d6f0];
+  const puff = new THREE.IcosahedronGeometry(1, 2);
+  for (let i = 0; i < 22; i++) {
+    const a = r() * Math.PI * 2, d = 26 + r() * 30, sc = 0.8 + r() * 0.9;
+    const g = new THREE.Group();
+    g.position.set(Math.cos(a) * d, 0, Math.sin(a) * d); g.scale.setScalar(sc);
+    const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, 1.8, 7), trunkMat); tr.position.y = 0.9; g.add(tr);
+    const cm = new THREE.MeshLambertMaterial({ color: crownCols[i % crownCols.length] });
+    for (let k = 0; k < 5; k++) {
+      const p = new THREE.Mesh(puff, cm);
+      p.position.set((r() - 0.5) * 1.4, 2.1 + r() * 0.9, (r() - 0.5) * 1.4); p.scale.setScalar(0.6 + r() * 0.5);
+      g.add(p);
+    }
+    scene.add(g);
+  }
+}
+
+/* ---------- 地面：青草地 + 落花 + 小花 ---------- */
+const grassUniforms = { uTime: { value: 0 } };
+{
+  const meadow = canvasTex(1024, 1024, (g, S) => {
+    const grd = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+    grd.addColorStop(0, 'rgba(248,212,226,1)'); grd.addColorStop(0.1, 'rgba(242,222,226,1)');
+    grd.addColorStop(0.22, 'rgba(200,226,186,1)'); grd.addColorStop(0.7, 'rgba(198,224,184,1)'); grd.addColorStop(1, 'rgba(196,223,182,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, S, S);
+    const r = mulberry32(5);
+    for (let i = 0; i < 1900; i++) { // 树下的落花
+      const a = r() * Math.PI * 2, d = Math.pow(r(), 0.7) * S * 0.14, x = S / 2 + Math.cos(a) * d, y = S / 2 + Math.sin(a) * d;
+      g.fillStyle = ['#ffb3cf', '#ffc9dc', '#ff9ec4', '#ffe0ea'][i % 4];
+      heartPath(g, x, y, 5 + r() * 5); g.fill();
+    }
+    const fc = ['#ffb3cf', '#ffd6e5', '#d9c8f5', '#fff3b8', '#c7e3fa', '#ffffff'];
+    for (let i = 0; i < 1900; i++) { // 草地里的小花
+      const a = r() * Math.PI * 2, d = (0.16 + Math.sqrt(r()) * 0.3) * S, x = S / 2 + Math.cos(a) * d, y = S / 2 + Math.sin(a) * d, s = 1.6 + r() * 2;
+      g.fillStyle = fc[i % fc.length];
+      for (let k = 0; k < 5; k++) { const pa = k / 5 * Math.PI * 2; g.beginPath(); g.arc(x + Math.cos(pa) * s, y + Math.sin(pa) * s, s * 0.8, 0, Math.PI * 2); g.fill(); }
+    }
+  });
+  const base = new THREE.Mesh(new THREE.CircleGeometry(220, 64), new THREE.MeshLambertMaterial({ color: 0xc4dfb6 }));
+  base.rotation.x = -Math.PI / 2; base.position.y = -0.02; scene.add(base);
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(28, 96), new THREE.MeshLambertMaterial({ map: meadow, transparent: true, depthWrite: false }));
+  ground.rotation.x = -Math.PI / 2; scene.add(ground);
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(28, 64), new THREE.ShadowMaterial({ color: 0x6a4a5a, opacity: 0.14 }));
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.01; shadow.receiveShadow = true; scene.add(shadow);
+
+  // 青草：一根根会随风摆动的草叶
+  const H = 0.5;
+  const blade = new THREE.PlaneGeometry(0.07, H, 1, 4); blade.translate(0, H / 2, 0);
+  const bp = blade.attributes.position;
+  for (let i = 0; i < bp.count; i++) { const k = bp.getY(i) / H; bp.setX(i, bp.getX(i) * (1 - k * 0.92)); bp.setZ(i, k * k * 0.08); }
+  const grassMat = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide });
+  grassMat.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = grassUniforms.uTime;
+    sh.vertexShader = 'uniform float uTime;\nvarying float vH;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      vH = position.y / ${H.toFixed(2)};
+      vec4 wp = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+      float sw = sin(uTime * 1.5 + wp.x * 0.35 + wp.z * 0.22) * 0.6 + sin(uTime * 0.6 + wp.x * 0.08) * 0.4;
+      transformed.x += sw * 0.1 * vH * vH;
+      transformed.z += cos(uTime * 1.2 + wp.z * 0.3) * 0.05 * vH * vH;`);
+    sh.fragmentShader = 'varying float vH;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n  diffuseColor.rgb *= mix(0.68, 1.12, vH);');
+  };
+  // 由近到远分四圈铺满整片大地：近处细密，远处草叶更宽更高，衔接远山
+  const rings = [
+    { r0: 0.9, r1: 22, n: 6000, w: 0.8, h: 0.8 },
+    { r0: 22, r1: 50, n: 4000, w: 1.6, h: 1 },
+    { r0: 50, r1: 75, n: 3500, w: 2, h: 1.2 },
+    { r0: 75, r1: 105, n: 4500, w: 2.4, h: 1.5 },
+  ];
+  const NG = rings.reduce((t, r) => t + r.n, 0), gr = mulberry32(71);
+  const grass = new THREE.InstancedMesh(blade, grassMat, NG);
+  const gcols = ['#9fd09c', '#b4dca4', '#8cc596', '#c3e3ae', '#a8d6b4', '#bfe0c0'].map(c => new THREE.Color(c));
+  const pinkTip = new THREE.Color('#f3c9d8');
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
+  let gi = 0;
+  for (const rg of rings) {
+    for (let i = 0; i < rg.n; i++, gi++) {
+      const a = gr() * Math.PI * 2, d = Math.sqrt(rg.r0 * rg.r0 + gr() * (rg.r1 * rg.r1 - rg.r0 * rg.r0));
+      const hs = (0.55 + gr() * 0.8) * rg.h * (d < 2.4 ? 0.6 : 1);
+      q.setFromEuler(e.set((gr() - 0.5) * 0.3, gr() * Math.PI * 2, (gr() - 0.5) * 0.3));
+      m4.compose(v.set(Math.cos(a) * d, 0, Math.sin(a) * d), q, sc.set((0.8 + gr() * 0.6) * rg.w, hs, 1));
+      grass.setMatrixAt(gi, m4);
+      grass.setColorAt(gi, gr() < 0.04 ? pinkTip : gcols[gi % gcols.length]);
+    }
+  }
+  grass.frustumCulled = false;
+  scene.add(grass);
+
+  // 立体小花（开在草尖上）
+  const N = 1400, r = mulberry32(55);
+  const fl = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.07, 0), new THREE.MeshStandardMaterial({ roughness: 0.6 }), N);
+  const cols = [0xffa6c9, 0xffd1e1, 0xcdb8f2, 0xfff0a6, 0xffffff, 0xffc2ad].map(c => new THREE.Color(c));
+  for (let i = 0; i < N; i++) {
+    const a = r() * Math.PI * 2, d = 2 + Math.sqrt(r()) * 34, s = (0.8 + r() * 0.8) * (1 + d / 30);
+    q.setFromEuler(e.set(r() * 3, r() * 3, r() * 3));
+    m4.compose(v.set(Math.cos(a) * d, 0.3 + r() * 0.3, Math.sin(a) * d), q, sc.set(s, s * 0.7, s));
+    fl.setMatrixAt(i, m4); fl.setColorAt(i, cols[i % cols.length]);
+  }
+  scene.add(fl);
+}
+
+/* ---------- 树皮贴图（程序化：纵向裂纹、树瘤、皮孔） ---------- */
+const barkMaps = (() => {
+  const W = 256, H = 512, r = mulberry32(99);
+  const hc = document.createElement('canvas'); hc.width = W; hc.height = H;
+  const g = hc.getContext('2d');
+  g.fillStyle = 'rgb(128,128,128)'; g.fillRect(0, 0, W, H);
+  const wavy = (x0, amp, n, ph, w, col, blur) => {
+    g.filter = `blur(${blur}px)`; g.strokeStyle = col; g.lineWidth = w;
+    for (const off of [-W, 0, W]) {
+      g.beginPath();
+      for (let y = 0; y <= H; y += 4) {
+        const x = x0 + off + Math.sin(y / H * Math.PI * 2 * n + ph) * amp + Math.sin(y / H * Math.PI * 2 * (n + 3) + ph * 2) * amp * 0.3;
+        y ? g.lineTo(x, y) : g.moveTo(x, y);
+      }
+      g.stroke();
+    }
+  };
+  for (let i = 0; i < 34; i++) { const v = 150 + r() * 60 | 0; wavy(r() * W, 3 + r() * 8, 1 + (r() * 3 | 0), r() * 6, 5 + r() * 9, `rgb(${v},${v},${v})`, 2); }
+  for (let i = 0; i < 46; i++) { const v = 20 + r() * 50 | 0; wavy(r() * W, 2 + r() * 7, 1 + (r() * 3 | 0), r() * 6, 1 + r() * 3, `rgb(${v},${v},${v})`, 0.6); }
+  g.filter = 'blur(0.5px)';
+  for (let i = 0; i < 70; i++) { // 横向皮孔
+    const x = r() * W, y = r() * H, w = 6 + r() * 14, v = 40 + r() * 40 | 0;
+    g.strokeStyle = `rgb(${v},${v},${v})`; g.lineWidth = 1.5 + r() * 1.5;
+    g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + w / 2, y + (r() - 0.5) * 3, x + w, y); g.stroke();
+  }
+  for (let i = 0; i < 5; i++) { // 树瘤
+    const x = r() * W, y = r() * H, rad = 8 + r() * 10;
+    g.filter = 'blur(2px)';
+    g.strokeStyle = 'rgb(60,60,60)'; g.lineWidth = 3; g.beginPath(); g.ellipse(x, y, rad * 0.7, rad, 0, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = 'rgb(175,175,175)'; g.beginPath(); g.ellipse(x, y, rad * 0.4, rad * 0.6, 0, 0, Math.PI * 2); g.fill();
+  }
+  g.filter = 'none';
+  const img = g.getImageData(0, 0, W, H), px = img.data;
+  for (let i = 0; i < px.length; i += 4) { const n = (r() - 0.5) * 26; px[i] = px[i + 1] = px[i + 2] = Math.max(0, Math.min(255, px[i] + n)); }
+  g.putImageData(img, 0, 0);
+
+  // 用高度图生成颜色：暗处偏深红褐，高处偏浅粉灰
+  const cc = document.createElement('canvas'); cc.width = W; cc.height = H;
+  const cg = cc.getContext('2d'); const cimg = cg.createImageData(W, H), cp = cimg.data;
+  const dark = [122, 86, 88], mid = [166, 126, 124], light = [216, 186, 180];
+  for (let i = 0; i < px.length; i += 4) {
+    const t = px[i] / 255, tint = Math.sin(i * 0.00009) * 8;
+    const a = t < 0.5 ? dark : mid, b = t < 0.5 ? mid : light, k = t < 0.5 ? t * 2 : (t - 0.5) * 2;
+    cp[i] = a[0] + (b[0] - a[0]) * k + tint; cp[i + 1] = a[1] + (b[1] - a[1]) * k; cp[i + 2] = a[2] + (b[2] - a[2]) * k + tint * 0.6; cp[i + 3] = 255;
+  }
+  cg.putImageData(cimg, 0, 0);
+  const map = new THREE.CanvasTexture(cc); map.colorSpace = THREE.SRGBColorSpace;
+  const bump = new THREE.CanvasTexture(hc);
+  for (const t of [map, bump]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; }
+  return { map, bump };
+})();
+const barkMat = new THREE.MeshStandardMaterial({ map: barkMaps.map, bumpMap: barkMaps.bump, bumpScale: 4, roughness: 0.92, metalness: 0 });
+
+/* ---------- 树枝几何：弯曲、渐细、表面起伏的管子 ---------- */
+function makeTube(curve, len, r0, r1, radial, tubular, rnd, opts = {}) {
+  const geo = new THREE.TubeGeometry(curve, tubular, 1, radial, false);
+  const pos = geo.attributes.position, uv = geo.attributes.uv;
+  const s1 = rnd() * 10, s2 = rnd() * 10, uRep = opts.uRep || 1;
+  const avgR = (r0 + r1) / 2, tileH = 4 * Math.PI * avgR / uRep;
+  const c = new THREE.Vector3(), p = new THREE.Vector3();
+  for (let i = 0; i <= tubular; i++) {
+    const s = i / tubular;
+    curve.getPointAt(s, c);
+    let R = r0 + (r1 - r0) * Math.pow(s, 0.9);
+    if (opts.flare) R *= 1 + opts.flare * Math.exp(-s * len * 3.2);
+    for (let j = 0; j <= radial; j++) {
+      const k = i * (radial + 1) + j, a = j / radial * Math.PI * 2;
+      const n = 1 + 0.07 * Math.sin(a * 3 + s * 9 + s1) + 0.045 * Math.sin(a * 7 + s * 23 + s2) + (opts.flare ? 0.12 * Math.exp(-s * len * 3) * Math.sin(a * 5 + s1) : 0);
+      p.fromBufferAttribute(pos, k).sub(c).multiplyScalar(R * n).add(c);
+      pos.setXYZ(k, p.x, p.y, p.z);
+      uv.setXY(k, j / radial * uRep, s * len / tileH);
+    }
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+function limbCurve(len, bend, rnd) {
+  const dx = (rnd() - 0.5) * bend * len, dz = (rnd() - 0.5) * bend * len;
+  return new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 0, 0), new THREE.Vector3(dx, len * 0.34, dz),
+    new THREE.Vector3(-dx * 0.5, len * 0.68, -dz * 0.4), new THREE.Vector3(0, len, 0),
+  ]);
+}
+
+/* ---------- 树干和树枝 ---------- */
+const rng = mulberry32(520);
+const branches = [];
+const slots = [];      // 叶子可以长的位置
+const tipBranches = [];
+const MAX_DEPTH = 4;
+const tree = new THREE.Group(); scene.add(tree);
+const addBark = (parent, geo) => { const m = new THREE.Mesh(geo, barkMat); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; };
+
+function grow(parent, y, len, r, depth, az, tilt) {
+  const g = new THREE.Group();
+  g.position.y = y;
+  g.rotation.order = 'YXZ';
+  g.rotation.set(0, az, tilt);
+  parent.add(g);
+  const rTop = depth === MAX_DEPTH ? r * 0.35 : r * 0.66;
+  const radial = depth === 0 ? 24 : depth < 2 ? 14 : depth < 3 ? 10 : 7;
+  const tubular = depth === 0 ? 28 : depth < 3 ? 12 : 6;
+  addBark(g, makeTube(limbCurve(len, depth === 0 ? 0.07 : 0.12, rng), len, r, rTop, radial, tubular, rng,
+    { flare: depth === 0 ? 0.75 : 0, uRep: depth < 2 ? 2 : 1 }));
+  if (depth > 0) addBark(g, new THREE.SphereGeometry(r * 1.04, radial, 6));
+  if (depth < MAX_DEPTH) { const cap = addBark(g, new THREE.SphereGeometry(rTop * 1.02, radial, 6)); cap.position.y = len; }
+  g.userData = { depth, baseZ: tilt, phase: rng() * Math.PI * 2, speed: 0.7 + rng() * 0.6 };
+  branches.push(g);
+
+  if (depth >= 2) {
+    const n = depth === MAX_DEPTH ? 6 : 3;
+    for (let i = 0; i < n; i++) {
+      const f = depth === MAX_DEPTH ? 0.25 + rng() * 0.95 : 0.5 + rng() * 0.5;
+      slots.push({
+        parent: g,
+        pos: new THREE.Vector3((rng() - 0.5) * 0.7, len * f, (rng() - 0.5) * 0.7),
+        rot: new THREE.Euler((rng() - 0.5) * 1.6, rng() * Math.PI * 2, (rng() - 0.5) * 1.2),
+      });
+    }
+  }
+  if (depth === MAX_DEPTH) { tipBranches.push({ g, len }); return; }
+
+  const n = depth === 0 ? 4 : (rng() < 0.55 ? 2 : 3);
+  const az0 = rng() * Math.PI * 2;
+  for (let i = 0; i < n; i++) {
+    const cy = depth === 0 ? len * (0.82 + rng() * 0.18) : len * (i === 0 ? 1 : 0.55 + rng() * 0.4);
+    const cLen = len * (0.8 + rng() * 0.14) * (depth === 0 ? 1.0 : 1);
+    const cTilt = depth === 0 ? 0.62 + rng() * 0.35 : (i === 0 ? 0.2 + rng() * 0.25 : 0.5 + rng() * 0.4);
+    const cAz = az0 + (i / n) * Math.PI * 2 + (rng() - 0.5) * 0.8;
+    grow(g, cy, cLen, rTop * 0.98, depth + 1, cAz, cTilt);
+  }
+}
+grow(tree, 0, 3.2, 0.4, 0, 0, 0);
+// 树根：从树干底部向四周伸进土里
+{
+  const r = mulberry32(404);
+  for (let i = 0; i < 6; i++) {
+    const a = i / 6 * Math.PI * 2 + r() * 0.5, L = 0.7 + r() * 0.8, dir = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
+    const pt = (d, y) => dir.clone().multiplyScalar(d).setY(y);
+    const side = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar((r() - 0.5) * 0.5);
+    const curve = new THREE.CatmullRomCurve3([pt(0.12, 0.32), pt(0.36, 0.1), pt(0.4 + L * 0.5, 0.03).add(side), pt(0.4 + L, -0.06).add(side.multiplyScalar(1.6))]);
+    addBark(tree, makeTube(curve, L + 0.5, 0.13 + r() * 0.03, 0.03, 10, 16, r, { uRep: 1 }));
+  }
+}
+// 打乱叶子位置（固定种子，每次打开位置都一样）
+{
+  const r = mulberry32(77);
+  for (let i = slots.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [slots[i], slots[j]] = [slots[j], slots[i]]; }
+}
+// 位置不够时，在枝梢附近继续开辟新位置 —— 叶子数量没有上限
+function ensureSlot(i) {
+  while (slots.length <= i) {
+    const r = mulberry32(9000 + slots.length);
+    const tb = tipBranches[Math.floor(r() * tipBranches.length)];
+    slots.push({ parent: tb.g, pos: new THREE.Vector3((r() - 0.5) * 0.7, tb.len * (0.2 + r()), (r() - 0.5) * 0.7), rot: new THREE.Euler((r() - 0.5) * 1.6, r() * Math.PI * 2, (r() - 0.5) * 1.2) });
+  }
+  return slots[i];
+}
+
+/* ---------- 叶子 ---------- */
+const LEAF_SIZE = 0.68;
+const leafGeo = new THREE.ExtrudeGeometry(new THREE.Shape(heartPoints(LEAF_SIZE)), {
+  depth: 0.03, bevelEnabled: true, bevelThickness: 0.018, bevelSize: 0.018, bevelSegments: 3, curveSegments: 8,
+});
+leafGeo.center();
+const FILLED = [0xe8457a, 0xf2457f, 0xe63d78, 0xff4f8b, 0xdc3a72];
+const EMPTY = [0xffb3cf, 0xffbdd5, 0xffa9c9, 0xffc2d9];
+function hashStr(s) { let h = 0; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) | 0; return Math.abs(h); }
+function matFor(leaf) {
+  if (leaf.date) {
+    const c = FILLED[hashStr(leaf.id) % FILLED.length];
+    const mat = new THREE.MeshPhysicalMaterial({ color: c, emissive: c, emissiveIntensity: 0.26, roughness: 0.3, metalness: 0.05, clearcoat: 1, clearcoatRoughness: 0.2 });
+    mat.userData.filled = true;
+    return mat;
+  }
+  const c = EMPTY[hashStr(leaf.id) % EMPTY.length];
+  return new THREE.MeshStandardMaterial({ color: c, emissive: 0xffe0ec, emissiveIntensity: 0.08, roughness: 0.55 });
+}
+// 有日期 = 深粉 + 淡淡的光晕，空叶子 = 浅粉实心
+function styleLeaf(m, leaf) {
+  if (m.material) m.material.dispose();
+  m.material = matFor(leaf);
+  const u = m.userData;
+  u.halo.visible = !!leaf.date;
+  u.baseScale = leaf.date ? 1.08 : 0.95;
+  m.castShadow = true;
+}
+const leafMeshes = [];
+const meshById = new Map();
+const clock = new THREE.Clock();
+
+function createLeafMesh(leaf, delay = 0) {
+  const s = ensureSlot(leaf.slot);
+  const m = new THREE.Mesh(leafGeo);
+  m.position.copy(s.pos);
+  const baseQuat = new THREE.Quaternion().setFromEuler(s.rot);
+  m.quaternion.copy(baseQuat);
+  m.scale.setScalar(0.001);
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: warmGlowTex, transparent: true, depthWrite: false, opacity: 0.85 }));
+  halo.scale.set(1.9, 1.9, 1); m.add(halo);
+  m.userData = { id: leaf.id, baseQuat, ph: Math.random() * 10, fs: 1.2 + Math.random() * 1.2, born: clock.elapsedTime + delay, hover: 0, halo, baseScale: 1 };
+  styleLeaf(m, leaf);
+  s.parent.add(m);
+  leafMeshes.push(m); meshById.set(leaf.id, m);
+  return m;
+}
+function removeLeafMesh(id) {
+  const m = meshById.get(id); if (!m) return;
+  m.parent && m.parent.remove(m); m.material.dispose(); m.userData.halo.material.dispose();
+  leafMeshes.splice(leafMeshes.indexOf(m), 1); meshById.delete(id);
+}
+function buildAllLeaves() {
+  [...meshById.keys()].forEach(removeLeafMesh);
+  data.leaves.forEach((l) => createLeafMesh(l, 0.3 + Math.random() * 2.2));
+}
+buildAllLeaves();
+function freeSlot() { return nextFreeSlot(data.leaves); }
+
+/* ---------- 飘落的爱心花瓣 ---------- */
+const PETALS = 900;
+const petalGeo = new THREE.BufferGeometry();
+const pPos = new Float32Array(PETALS * 3), pCol = new Float32Array(PETALS * 3), pVel = [];
+const petalPalette = ['#ff8fb8', '#ffb3cf', '#f7729f', '#ffc9dc', '#e8457a'].map(c => new THREE.Color(c));
+function resetPetal(i, top) {
+  const a = Math.random() * Math.PI * 2, r = Math.pow(Math.random(), 0.6) * 22;
+  pPos[i * 3] = Math.cos(a) * r; pPos[i * 3 + 1] = top ? 13 + Math.random() * 4 : Math.random() * 17; pPos[i * 3 + 2] = Math.sin(a) * r;
+  pVel[i] = { vy: 0.35 + Math.random() * 0.5, ph: Math.random() * 10, sw: 0.3 + Math.random() * 0.6 };
+}
+for (let i = 0; i < PETALS; i++) { resetPetal(i, false); const c = petalPalette[i % petalPalette.length]; pCol.set([c.r, c.g, c.b], i * 3); }
+petalGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+petalGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
+scene.add(new THREE.Points(petalGeo, new THREE.PointsMaterial({ size: 0.3, map: heartTex, vertexColors: true, transparent: true, depthWrite: false, opacity: 0.85 })));
+
+/* ---------- 彩色泡泡光斑 ---------- */
+const BOKEH = 380;
+const bGeo = new THREE.BufferGeometry(); const bPos = new Float32Array(BOKEH * 3), bCol = new Float32Array(BOKEH * 3); const bSeed = [];
+const bokehPalette = ['#ffc2d9', '#d9c8f5', '#c7e3fa', '#fff0b3', '#c8f0d8', '#ffd1bd'].map(c => new THREE.Color(c));
+for (let i = 0; i < BOKEH; i++) {
+  bSeed.push({ a: Math.random() * Math.PI * 2, r: 2 + Math.pow(Math.random(), 0.7) * 20, y: Math.random() * 15, sp: 0.08 + Math.random() * 0.2, ph: Math.random() * 10 });
+  const c = bokehPalette[i % bokehPalette.length]; bCol.set([c.r, c.g, c.b], i * 3);
+}
+bGeo.setAttribute('position', new THREE.BufferAttribute(bPos, 3));
+bGeo.setAttribute('color', new THREE.BufferAttribute(bCol, 3));
+scene.add(new THREE.Points(bGeo, new THREE.PointsMaterial({ size: 0.55, map: glowTex, vertexColors: true, transparent: true, depthWrite: false, opacity: 0.75 })));
+
+/* ---------- 蝴蝶 ---------- */
+const butterflies = [];
+{
+  const wingCols = [['#ffb3cf', '#ff6fa5'], ['#d9c8f5', '#a98be0'], ['#c7e3fa', '#7fb3e8'], ['#ffe0b3', '#ffb07a'], ['#c8f0d8', '#7fcfa0'], ['#ffc9dc', '#e8457a']];
+  const W = 0.36;
+  for (let k = 0; k < 18; k++) {
+    const [c1, c2] = wingCols[k % wingCols.length];
+    const tex = canvasTex(128, 128, (g) => {
+      const grd = g.createLinearGradient(128, 64, 0, 64); grd.addColorStop(0, c2); grd.addColorStop(1, c1);
+      g.fillStyle = grd;
+      g.beginPath(); g.ellipse(64, 44, 58, 40, -0.35, 0, Math.PI * 2); g.fill();   // 前翅
+      g.beginPath(); g.ellipse(76, 94, 38, 28, 0.5, 0, Math.PI * 2); g.fill();     // 后翅
+      g.fillStyle = 'rgba(255,255,255,.75)';
+      [[40, 36, 7], [62, 26, 5], [70, 96, 6]].forEach(([x, y, r]) => { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); });
+    });
+    const mat = new THREE.MeshStandardMaterial({ map: tex, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, roughness: 0.6 });
+    const geo = new THREE.PlaneGeometry(W, W); geo.rotateX(-Math.PI / 2); geo.translate(-W / 2, 0, 0);
+    const bf = new THREE.Group();
+    const pl = new THREE.Group(), pr = new THREE.Group();
+    pl.add(new THREE.Mesh(geo, mat));
+    const rw = new THREE.Mesh(geo, mat); rw.scale.x = -1; pr.add(rw);
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.018, 0.16, 4, 8), new THREE.MeshStandardMaterial({ color: 0x6a3a50 }));
+    body.rotation.x = Math.PI / 2;
+    bf.add(pl, pr, body);
+    const R = 3 + Math.random() * 12;
+    bf.userData = { pl, pr, R, y0: 1.5 + Math.random() * 7, w: (0.18 + Math.random() * 0.15) * Math.min(1, 5 / R) * (k % 2 ? 1 : -1), ph: Math.random() * 10 };
+    scene.add(bf); butterflies.push(bf);
+  }
+}
+const bfPos = (u, t, out) => out.set(
+  Math.cos(u.w * t + u.ph) * u.R + Math.sin(u.w * 2.3 * t) * 0.8,
+  u.y0 + Math.sin(u.w * 1.7 * t + u.ph) * 1.1,
+  Math.sin(u.w * t + u.ph) * u.R * 0.9 + Math.cos(u.w * 1.9 * t) * 0.6);
+
+/* ---------- 新叶子高亮：闪烁光圈 + 标签 ---------- */
+const beacon = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: canvasTex(256, 256, (g) => {
+    const grd = g.createRadialGradient(128, 128, 60, 128, 128, 128);
+    grd.addColorStop(0, 'rgba(255,255,255,0)'); grd.addColorStop(0.6, 'rgba(255,255,255,.35)'); grd.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, 256, 256);
+    g.strokeStyle = '#fff'; g.lineWidth = 7; g.setLineDash([20, 12]);
+    g.beginPath(); g.arc(128, 128, 88, 0, Math.PI * 2); g.stroke();
+    g.setLineDash([]); g.fillStyle = '#fff';
+    for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; heartPath(g, 128 + Math.cos(a) * 110, 128 + Math.sin(a) * 110, 22); g.fill(); }
+  }),
+  color: 0xff3d7f, transparent: true, depthTest: false, depthWrite: false,
+}));
+beacon.renderOrder = 999; beacon.visible = false; scene.add(beacon);
+const tag = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthTest: false, depthWrite: false }));
+tag.center.set(0.5, 1); tag.renderOrder = 1000; tag.visible = false; scene.add(tag);
+function setTagText(text) {
+  if (tag.material.map) tag.material.map.dispose();
+  tag.material.map = canvasTex(512, 150, (g) => {
+    g.fillStyle = 'rgba(255,255,255,.96)'; g.strokeStyle = '#ff6fa5'; g.lineWidth = 5;
+    g.beginPath(); g.roundRect(6, 44, 500, 100, 50); g.fill(); g.stroke();
+    g.beginPath(); g.moveTo(236, 46); g.lineTo(256, 8); g.lineTo(276, 46); g.closePath(); g.fillStyle = '#ff6fa5'; g.fill();
+    g.fillStyle = '#d6336c'; g.font = 'bold 46px "LXGW WenKai", KaiTi, STKaiti, "Microsoft YaHei", serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(text, 256, 96);
+  });
+  tag.material.needsUpdate = true;
+  tag.scale.set(2.6, 2.6 * 150 / 512, 1);
+}
+let highlight = null;
+const HIGHLIGHT_SECONDS = 45;
+function startHighlight(id) {
+  const l = leafById(id);
+  highlight = { id, start: clock.elapsedTime, until: clock.elapsedTime + HIGHLIGHT_SECONDS };
+  setTagText(l.date ? `✨ 新叶子 · ${shortDate(l.date)}` : '✨ 新的空叶子');
+  controls.autoRotate = false;
+}
+function endHighlight() {
+  highlight = null; beacon.visible = tag.visible = false;
+  if (canAutoRotate()) controls.autoRotate = true;
+}
+
+/* ---------- 镜头转向某片叶子 ---------- */
+let camTween = null;
+function turnCameraTo(mesh) {
+  const p = mesh.getWorldPosition(new THREE.Vector3());
+  const sph = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+  const to = Math.atan2(p.x - controls.target.x, p.z - controls.target.z);
+  let d = to - sph.theta; d = ((d + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+  camTween = { sph, from: sph.theta, to: sph.theta + d, t: 0 };
+  controls.enabled = false; controls.autoRotate = false;
+}
+
+/* ================= 交互 ================= */
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let hovered = null, downAt = null;
+const tooltip = $('tooltip');
+
+function pick(e) {
+  const rect = canvas.getBoundingClientRect();
+  pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+  raycaster.setFromCamera(pointer, camera);
+  const hit = raycaster.intersectObjects(leafMeshes, false)[0];
+  return hit ? hit.object : null;
+}
+const leafById = (id) => data.leaves.find(l => l.id === id);
+
+canvas.addEventListener('pointermove', (e) => {
+  if (e.pointerType !== 'mouse') return;
+  const m = pick(e);
+  hovered = m && (!focus || focus.mesh !== m) ? m : null;
+  canvas.style.cursor = hovered ? 'pointer' : 'grab';
+  if (hovered) {
+    const l = leafById(hovered.userData.id);
+    tooltip.textContent = l.date ? `💗 ${prettyDate(l.date)}${l.activities[0] ? ' · ' + l.activities[0] : ''}` : '🤍 空白的叶子 · 点击写下你们的一天';
+    tooltip.style.left = Math.min(e.clientX + 16, innerWidth - tooltip.offsetWidth - 8) + 'px';
+    tooltip.style.top = (e.clientY + 18) + 'px';
+    tooltip.style.opacity = 1;
+  } else tooltip.style.opacity = 0;
+});
+canvas.addEventListener('pointerdown', (e) => { downAt = { x: e.clientX, y: e.clientY }; });
+canvas.addEventListener('pointerup', (e) => {
+  if (!downAt) return;
+  const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y);
+  downAt = null;
+  if (moved > 6) return;
+  const m = pick(e);
+  if (m && (!focus || focus.mesh !== m)) openLeaf(m.userData.id);
+  else if (!m && focus) closeLeaf();
+});
+
+/* ---------- 叶子放大 / 还原 ---------- */
+let focus = null;
+const tmpQ = new THREE.Quaternion(), spinQ = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0);
+const ease = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+function snapBack() {
+  if (!focus) return;
+  const { mesh, parent, lp } = focus;
+  parent.add(mesh); mesh.position.copy(lp); mesh.quaternion.copy(mesh.userData.baseQuat); mesh.scale.setScalar(mesh.userData.baseScale);
+  focus = null;
+}
+
+function openLeaf(id) {
+  const mesh = meshById.get(id); if (!mesh) return;
+  if (focus) snapBack();
+  camTween = null;
+  hovered = null; tooltip.style.opacity = 0;
+  const parent = mesh.parent;
+  const lp = ensureSlot(leafById(id).slot).pos.clone();
+  scene.attach(mesh);
+
+  const dist = 4.2;
+  const halfH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * dist, halfW = halfH * camera.aspect;
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+  const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+  const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+  const narrow = innerWidth <= 720;
+  const toPos = camera.position.clone().addScaledVector(dir, dist);
+  if (narrow) toPos.addScaledVector(up, halfH * 0.5); else toPos.addScaledVector(right, -halfW * 0.32);
+  const worldSize = narrow ? Math.min(halfH * 0.75, halfW * 1.1) : halfH * 1.05;
+
+  focus = {
+    mesh, parent, lp, phase: 'in', t: 0,
+    fromPos: mesh.position.clone(), fromQuat: mesh.quaternion.clone(), fromScale: mesh.scale.x,
+    toPos, toQuat: camera.quaternion.clone(), toScale: worldSize / LEAF_SIZE, up,
+  };
+  controls.enabled = false; controls.autoRotate = false;
+  showCard(id);
+}
+
+function closeLeaf() {
+  if (!focus || focus.phase === 'out') return;
+  focus.phase = 'out'; focus.t = 0;
+  focus.fromPos = focus.mesh.position.clone(); focus.fromQuat = focus.mesh.quaternion.clone(); focus.fromScale = focus.mesh.scale.x;
+  hideCard();
+}
+
+const _v = new THREE.Vector3(), _q = new THREE.Quaternion();
+function updateFocus(dt, t) {
+  if (!focus) return;
+  const f = focus, m = f.mesh;
+  if (f.phase === 'in') {
+    f.t = Math.min(1, f.t + dt / 0.95);
+    const e = ease(f.t);
+    m.position.lerpVectors(f.fromPos, f.toPos, e);
+    tmpQ.slerpQuaternions(f.fromQuat, f.toQuat, e);
+    spinQ.setFromAxisAngle(Y, (1 - e) * Math.PI * 2);
+    m.quaternion.copy(tmpQ).multiply(spinQ);
+    m.scale.setScalar(THREE.MathUtils.lerp(f.fromScale, f.toScale, e));
+    if (f.t >= 1) { f.phase = 'shown'; f.shownAt = t; }
+  } else if (f.phase === 'shown') {
+    const k = t - f.shownAt;
+    m.position.copy(f.toPos).addScaledVector(f.up, Math.sin(k * 1.6) * 0.06);
+    spinQ.setFromAxisAngle(Y, Math.sin(k * 0.9) * 0.28);
+    m.quaternion.copy(f.toQuat).multiply(spinQ);
+    const beat = 1 + 0.035 * Math.max(0, Math.sin(k * 5)) ** 8 + 0.02 * Math.sin(k * 2.2);
+    m.scale.setScalar(f.toScale * beat);
+  } else {
+    f.t = Math.min(1, f.t + dt / 0.75);
+    const e = ease(f.t);
+    f.parent.updateWorldMatrix(true, false);
+    _v.copy(f.lp).applyMatrix4(f.parent.matrixWorld);
+    f.parent.getWorldQuaternion(_q).multiply(m.userData.baseQuat);
+    m.position.lerpVectors(f.fromPos, _v, e);
+    m.quaternion.slerpQuaternions(f.fromQuat, _q, e);
+    m.scale.setScalar(THREE.MathUtils.lerp(f.fromScale, m.userData.baseScale, e));
+    if (f.t >= 1) {
+      snapBack();
+      controls.enabled = true;
+      clearTimeout(idleTimer); idleTimer = setTimeout(() => { if (canAutoRotate()) controls.autoRotate = true; }, 4000);
+    }
+  }
+}
+
+/* ---------- 卡片 UI ---------- */
+const card = $('card');
+let cardLeafId = null;
+
+function showCard(id) {
+  cardLeafId = id;
+  renderCardView();
+  setEditMode(false);
+  card.classList.remove('hidden'); document.body.classList.add('focused');
+}
+function hideCard() { card.classList.add('hidden'); document.body.classList.remove('focused'); cardLeafId = null; }
+
+function renderCardView() {
+  const l = leafById(cardLeafId); if (!l) return;
+  const acts = $('cardActs'); acts.innerHTML = '';
+  if (l.date) {
+    const d = parseDate(l.date); const n = daysAgo(l.date);
+    $('cardKicker').textContent = '💗 属于我们的一天';
+    $('cardDate').textContent = prettyDate(l.date);
+    $('cardSub').textContent = `星期${WEEK[d.getDay()]} · ` + (n === 0 ? '就是今天' : `${n} 天前`);
+  } else {
+    $('cardKicker').textContent = '🤍 一片空白的叶子';
+    $('cardDate').textContent = '还没有日期';
+    $('cardSub').textContent = '它在等待属于你们的某一天';
+  }
+  l.activities.forEach(a => { const li = document.createElement('li'); li.textContent = a; acts.appendChild(li); });
+  const empty = $('cardEmpty');
+  empty.classList.toggle('hidden', l.activities.length > 0);
+  empty.textContent = l.date ? '这一天还没有写下做了什么，点击「编辑」记录下来吧～' : '点击「编辑」给这片叶子选一个日期，写下那天你们一起做的事 💌';
+  $('btnEdit').textContent = l.date ? '✎ 编辑' : '✎ 写下这一天';
+}
+
+function setEditMode(on) {
+  $('cardView').classList.toggle('hidden', on);
+  $('cardEdit').classList.toggle('hidden', !on);
+  if (on) {
+    const l = leafById(cardLeafId);
+    $('editKicker').textContent = l.date ? '✎ 编辑这一天' : '🌱 给空叶子选一个日期';
+    $('editDate').max = todayStr();
+    $('editDate').value = l.date || '';
+    $('editActs').value = l.activities.join('\n');
+    $('editErr').textContent = '';
+    (l.date ? $('editActs') : $('editDate')).focus();
+  }
+}
+
+function flashError(el, box, msg) {
+  el.textContent = msg;
+  box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+}
+
+$('btnEdit').onclick = () => setEditMode(true);
+$('btnCancelEdit').onclick = () => setEditMode(false);
+$('cardClose').onclick = () => closeLeaf();
+$('cardEdit').onsubmit = (e) => {
+  e.preventDefault();
+  const l = leafById(cardLeafId); if (!l) return;
+  const date = $('editDate').value || null;
+  const err = dateError(date, l.id);
+  if (err) return flashError($('editErr'), card, err);
+  const wasFilled = !!l.date;
+  l.date = date; l.activities = parseActs($('editActs').value);
+  if (wasFilled !== !!date) styleLeaf(meshById.get(l.id), l);
+  let sprouted = false;
+  if (!wasFilled && date) { // 空叶子被填上了：在树上补一片新的空叶子，保持空叶子数量不变
+    const nl = { id: uid(), date: null, activities: [], slot: freeSlot() };
+    data.leaves.push(nl); createLeafMesh(nl, 0.4); sprouted = true;
+  }
+  save(); renderCardView(); setEditMode(false);
+  toast(!date ? '已保存（这片叶子没有日期，仍是空叶子）' : sprouted ? '已保存 💗 树上又冒出了一片新的空叶子 🌱' : '已保存 💗');
+};
+$('btnDelete').onclick = () => {
+  const l = leafById(cardLeafId); if (!l) return;
+  if (!confirm(l.date ? `确定要删除 ${prettyDate(l.date)} 这片叶子吗？` : '确定要删除这片空叶子吗？')) return;
+  const id = l.id;
+  if (focus && focus.mesh.userData.id === id) { focus = null; controls.enabled = true; }
+  if (highlight && highlight.id === id) endHighlight();
+  hideCard();
+  removeLeafMesh(id);
+  data.leaves = data.leaves.filter(x => x.id !== id);
+  save(); toast('叶子已经飘走了 🍃');
+};
+
+/* ---------- 添加树叶 ---------- */
+const addModal = $('addModal');
+function openAdd() {
+  $('addDate').max = todayStr();
+  $('addDate').value = dateTaken(todayStr()) ? '' : todayStr();
+  $('addActs').value = ''; $('addErr').textContent = '';
+  addModal.classList.remove('hidden');
+  setTimeout(() => $('addDate').focus(), 50);
+}
+const closeAdd = () => addModal.classList.add('hidden');
+$('btnAdd').onclick = openAdd;
+$('addCancel').onclick = closeAdd;
+$('addClose').onclick = closeAdd;
+addModal.addEventListener('pointerdown', (e) => { if (e.target === addModal) closeAdd(); });
+$('addForm').onsubmit = (e) => {
+  e.preventDefault();
+  const date = $('addDate').value || null;
+  const err = dateError(date);
+  if (err) return flashError($('addErr'), $('addForm'), err);
+  // 新叶子总是长在新的位置上，不会替换或挤掉已有的空叶子
+  const leaf = { id: uid(), date, activities: parseActs($('addActs').value), slot: freeSlot() };
+  data.leaves.push(leaf); save();
+  if (focus) { closeLeaf(); }
+  const m = createLeafMesh(leaf, 0);
+  closeAdd();
+  drawer.classList.add('closed');
+  startHighlight(leaf.id);
+  turnCameraTo(m);
+  toast(date ? `新叶子长出来啦：${prettyDate(date)} 🌱 正在树上闪闪发光，点它就能打开` : '长出了一片新的空叶子 🌱 正在树上闪闪发光');
+};
+
+/* ---------- 回忆列表 ---------- */
+const drawer = $('drawer');
+function renderDrawer() {
+  const list = $('drawerList'); list.innerHTML = '';
+  const filled = data.leaves.filter(l => l.date).sort((a, b) => b.date.localeCompare(a.date));
+  if (!filled.length) list.innerHTML = '<div class="drawer-note">还没有带日期的叶子～</div>';
+  filled.forEach(l => {
+    const div = document.createElement('div'); div.className = 'mem';
+    const d = document.createElement('div'); d.className = 'd'; d.textContent = '💗 ' + prettyDate(l.date);
+    const a = document.createElement('div'); a.className = 'a'; a.textContent = l.activities.join('；') || '（还没写内容）';
+    div.append(d, a);
+    div.onclick = () => { drawer.classList.add('closed'); openLeaf(l.id); };
+    list.appendChild(div);
+  });
+  $('drawerNote').textContent = `树上还有 ${data.leaves.length - filled.length} 片空叶子，等你们去填满 🤍`;
+}
+$('btnList').onclick = () => drawer.classList.toggle('closed');
+$('drawerClose').onclick = () => drawer.classList.add('closed');
+
+/* ---------- 导入导出 ---------- */
+$('btnExport').onclick = () => {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `lovetree-${todayStr()}.json`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('importFile').onchange = async (e) => {
+  const file = e.target.files[0]; e.target.value = '';
+  if (!file) return;
+  try {
+    const d = JSON.parse(await file.text());
+    if (!Array.isArray(d.leaves)) throw new Error('格式不对');
+    const seen = new Set(), today = todayStr();
+    d.leaves.forEach((l, i) => {
+      if (l.date && seen.has(l.date)) throw new Error(`日期 ${l.date} 重复`);
+      if (l.date && l.date > today) throw new Error(`日期 ${l.date} 是未来的日子`);
+      if (l.date) seen.add(l.date);
+      l.id = l.id || uid(); l.activities = Array.isArray(l.activities) ? l.activities : [];
+      l.slot = Number.isInteger(l.slot) ? l.slot : 10000 + i;
+    });
+    if (focus) snapBack(); hideCard(); controls.enabled = true; endHighlight();
+    data = d; save(); buildAllLeaves(); toast('导入成功 💗');
+  } catch (err) { toast('导入失败：' + err.message, true); }
+};
+
+/* ---------- 其他 ---------- */
+let toastTimer;
+function toast(msg, isErr) {
+  const t = $('toast'); t.textContent = msg; t.classList.toggle('error', !!isErr); t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+}
+function updateStats() {
+  const filled = data.leaves.filter(l => l.date);
+  $('stats').textContent = `🌸 ${data.leaves.length} 片叶子 · 已点亮 ${filled.length} 天 · 从 ${prettyDate(LOVE_START)} 起，我们已经相爱 ${daysAgo(LOVE_START) + 1} 天`;
+}
+addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (!addModal.classList.contains('hidden')) closeAdd();
+  else if (focus) closeLeaf();
+  else drawer.classList.add('closed');
+});
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+updateStats(); renderDrawer();
+
+/* ================= 动画循环 ================= */
+const _e = new THREE.Euler(), _w = new THREE.Vector3(), _n = new THREE.Vector3();
+function backOut(x) { const c1 = 1.7, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); }
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+  const wind = 0.6 + 0.4 * Math.sin(t * 0.35) + 0.25 * Math.sin(t * 0.9 + 1.3); // 阵风
+
+  // 树枝随风摆动
+  for (const b of branches) {
+    const u = b.userData, amp = (u.depth === 0 ? 0.004 : 0.012 * u.depth) * wind;
+    b.rotation.z = u.baseZ + Math.sin(t * u.speed + u.phase) * amp;
+    b.rotation.x = Math.cos(t * u.speed * 0.8 + u.phase) * amp * 0.7;
+  }
+
+  // 叶子轻轻飘动 + 出生动画 + 悬停放大 + 心跳发光 + 新叶子脉动
+  for (const m of leafMeshes) {
+    const u = m.userData;
+    if (m.material.userData.filled) {
+      m.material.emissiveIntensity = 0.24 + 0.08 * Math.sin(t * 2.4 + u.ph);
+      u.halo.material.opacity = 0.58 + 0.16 * Math.sin(t * 2.4 + u.ph);
+      u.halo.scale.setScalar(1 + 0.15 * Math.sin(t * 2.4 + u.ph));
+    }
+    if (focus && focus.mesh === m) continue;
+    const k = t * u.fs + u.ph;
+    _e.set(Math.sin(k) * 0.28 * wind, Math.sin(k * 0.7) * 0.25 * wind, Math.cos(k * 1.3) * 0.16);
+    tmpQ.setFromEuler(_e);
+    m.quaternion.copy(u.baseQuat).multiply(tmpQ);
+    const g = THREE.MathUtils.clamp((t - u.born) / 0.9, 0, 1);
+    u.hover += ((m === hovered ? 1 : 0) - u.hover) * 0.18;
+    const hl = highlight && highlight.id === u.id ? 1.25 + 0.35 * (0.5 + 0.5 * Math.sin(t * 5)) : 1;
+    const s = (g > 0 ? backOut(g) : 0.001) * (1 + u.hover * 0.45) * u.baseScale * hl;
+    m.scale.setScalar(Math.max(s, 0.001));
+  }
+  updateFocus(dt, t);
+
+  // 新叶子的高亮光圈和标签
+  if (highlight) {
+    const m = meshById.get(highlight.id), left = highlight.until - t;
+    if (!m || left <= 0) endHighlight();
+    else {
+      const fade = Math.min(1, left / 3, (t - highlight.start) / 0.6);
+      const hide = focus && focus.mesh === m;
+      beacon.visible = tag.visible = !hide;
+      m.getWorldPosition(_w);
+      beacon.position.copy(_w);
+      beacon.material.opacity = fade;
+      beacon.material.rotation += dt * 0.8;
+      const bs = 1.25 + 0.25 * Math.sin(t * 4);
+      beacon.scale.set(bs, bs, 1);
+      tag.position.copy(_w); tag.position.y -= 0.5 + 0.08 * Math.sin(t * 2.5);
+      tag.material.opacity = fade;
+    }
+  }
+
+  // 镜头转向
+  if (camTween) {
+    camTween.t = Math.min(1, camTween.t + dt / 1.6);
+    camTween.sph.theta = THREE.MathUtils.lerp(camTween.from, camTween.to, ease(camTween.t));
+    camera.position.copy(controls.target).add(_n.setFromSpherical(camTween.sph));
+    camera.lookAt(controls.target);
+    if (camTween.t >= 1) { camTween = null; if (!focus) controls.enabled = true; }
+  }
+
+  // 花瓣飘落
+  for (let i = 0; i < PETALS; i++) {
+    const v = pVel[i];
+    pPos[i * 3 + 1] -= v.vy * dt;
+    pPos[i * 3] += (Math.sin(t * v.sw + v.ph) * 0.4 + 0.25 * wind) * dt;
+    pPos[i * 3 + 2] += Math.cos(t * v.sw * 0.8 + v.ph) * 0.3 * dt;
+    if (pPos[i * 3 + 1] < 0.05 || Math.hypot(pPos[i * 3], pPos[i * 3 + 2]) > 26) resetPetal(i, true);
+  }
+  petalGeo.attributes.position.needsUpdate = true;
+
+  // 彩色光斑缓缓上升
+  for (let i = 0; i < BOKEH; i++) {
+    const s = bSeed[i];
+    s.y += s.sp * dt; if (s.y > 15) s.y = 0;
+    const a = s.a + t * 0.05;
+    bPos.set([Math.cos(a) * s.r + Math.sin(t * 0.7 + s.ph) * 0.3, s.y, Math.sin(a) * s.r], i * 3);
+  }
+  bGeo.attributes.position.needsUpdate = true;
+
+  // 蝴蝶
+  for (const bf of butterflies) {
+    const u = bf.userData;
+    bfPos(u, t, bf.position); bfPos(u, t + 0.1, _n);
+    bf.lookAt(_n);
+    const flap = 0.35 + 0.75 * Math.sin(t * 13 + u.ph);
+    u.pl.rotation.z = -flap; u.pr.rotation.z = flap;
+  }
+
+  // 云朵慢慢飘
+  for (const c of clouds) {
+    const u = c.userData; u.a += u.sp * dt;
+    c.position.set(Math.cos(u.a) * u.rad, u.y, Math.sin(u.a) * u.rad);
+  }
+
+  pinkLight.intensity = 9 + 3 * Math.sin(t * 1.5);
+  grassUniforms.uTime.value = t;
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+const ld = $('loading'); ld.style.opacity = 0; setTimeout(() => ld.remove(), 900);
+</script>
+</body>
+</html>
